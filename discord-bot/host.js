@@ -62,7 +62,7 @@ class HostGuildManager extends EventEmitter {
 
         this.database.ipc.on('user_position_create', msg => this.onPositionCreate(msg.payload).catch(console.error))
         this.database.ipc.on('audited_user_position_remove', msg => this.onPositionRemove(msg.payload).catch(console.error))
-        this.database.ipc.on('user_position_remove', msg => this.onPositionRemove(msg.payload).catch(console.error))
+        this.database.ipc.on('user_position_remove', msg => this.onPositionRemove({ userPosition: msg.payload }).catch(console.error))
         this.database.ipc.on('user_position_expire', msg => this.onPositionExpire(msg.payload).catch(console.error))
 
         this.database.ipc.on('audited_position_role_create', msg => this.onPositionRoleChange(msg.payload).catch(console.error))
@@ -88,7 +88,7 @@ class HostGuildManager extends EventEmitter {
     }
 
     async onPositionExpire(userPosition) {
-        await this.onPositionChange(false, userPosition, false)
+        await this.onPositionChange(false, userPosition, undefined)
     }
 
     async onPositionChange(exists, userPositionData, executor_id) {
@@ -101,11 +101,11 @@ class HostGuildManager extends EventEmitter {
         }
     }
 
-    async onPositionRoleChange({ positionRole: { guild_id }, executor_id }) {
+    async onPositionRoleChange({ positionRole: { guild_id }, executor }) {
         if (guild_id === this.hostId) {
             const permissions = await this.permissions.fetchData()
             this.guild.members.cache
-                .forEach(m => this.emit("permissionsUpdate", this.permissions.permissifyUser(m.user, permissions), executor_id))
+                .forEach(m => this.emit("permissionsUpdate", this.permissions.permissifyUser(m.user, permissions), executor))
         }
     }
 
