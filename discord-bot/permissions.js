@@ -359,8 +359,11 @@ class PermissionsManager extends EventEmitter {
         if (!position) return undefined;
 
         if (position.name === "banned") return this.isBanned(guildId, userId);
-        const required = this.getPositionRequiredRoles(guildId, position) 
-        return required.some(role => this.hasRole(guildId, userId, role.id));
+       
+        const required = this.getPositionRequiredRoles(guildId, position)
+        const has = required.map(role => this.hasRole(guildId, userId, role.id))
+        if (has.some(v => v)) return true;
+        return (has.length === 0 || has.some(v => v === undefined)) ? undefined : false;
     }
 
     /**
