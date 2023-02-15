@@ -67,10 +67,10 @@ class TextUtil {
     }
 
     /** @param {number} delta Number of seconds to stringify */
-    static stringifyTimeDelta(delta, withoutFormating=false) {
+    static stringifyTimeDelta(delta, withoutFormatting=false) {
         const layers = { day: 86400, hour: 3600, min: 60 };
         const timeLeft = { day: 0, hour: 0, min: 0 };
-        if (delta < 60) return (withoutFormating ? "1min" : `\`1min\``);
+        if (delta < 60) return (withoutFormatting ? "1min" : `\`1min\``);
     
         for (const [layer, value] of Object.entries(layers)) {
             const amount = Math.floor(delta / value)
@@ -82,7 +82,7 @@ class TextUtil {
         return Object.entries(timeLeft)
             .filter(([name, value]) => (value > 0))
             .map(([name, value]) => `${value}${(value > 1 ? `${name}s` : name)}`)
-            .map(v => (withoutFormating ? v : `\`${v}\``))
+            .map(v => (withoutFormatting ? v : `\`${v}\``))
             .join(' ');
     }
 
@@ -121,6 +121,14 @@ class TextUtil {
     /** @param {string} str  */
     static snakeToUpperCamelCase(str) {
         return str.split("_").map(v => v[0].toUpperCase() + v.slice(1)).join(" ");
+    }
+
+    static stringifyObject(obj, max) {
+        if (!obj || Object.values(obj).length < 1) return '*None*';
+        if (obj instanceof Array)
+            return obj.slice(0, max).map(value => '`•` ' + `${value}`).join('\n') + (obj.length > max ? `\n... and more` : ``);
+        return Object.entries(obj).slice(0, max).map(([key, value]) => `\`•\` **${key}:** \`${value}\``).join('\n') 
+            + (Object.keys(obj).length > max ? `\n... and more` : ``);
     }
 
 }
