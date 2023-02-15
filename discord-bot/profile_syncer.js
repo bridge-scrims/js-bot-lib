@@ -99,7 +99,7 @@ class UserProfileUpdater {
         if (member.guild.id === this.bot.hostGuildId && this.bot.servesHost) {
             const profile = profiles ? profiles[member.id] : this.database.users.cache.find(member.id)
             if (profile && !profile.joined_at && member.joinedTimestamp) 
-                await this.database.users.update(profile, { joined_at: Math.floor(member.joinedTimestamp / 1000) })
+                await this.database.users.sqlUpdate(profile, { joined_at: Math.floor(member.joinedTimestamp / 1000) })
                     .catch(err => console.error(`Unable to update profile joined_at for ${member.id}: ${err}`, member.joinedTimestamp))
         }
     }

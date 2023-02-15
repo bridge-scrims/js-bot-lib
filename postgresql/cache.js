@@ -3,6 +3,8 @@ const EventEmitter = require("events");
 /** @template [T=import("./row")] */
 class DBCache extends EventEmitter {
 
+    /** @typedef {Object.<string, any>|Array.<string>|string|number|T} Resolvable */
+
     constructor(options={}) {
 
         super()
@@ -109,11 +111,12 @@ class DBCache extends EventEmitter {
     }
 
     /**
-     * @param {Object.<string, any>|Array.<string>|Array.<Array.<string>>|T} [options] If falsely, gets all.
+     * @param {Resolvable|Array.<Array.<string>>} [options] If falsely, gets all.
      * @returns {T[]}
      */ 
     get(options) {
         if (!options) return this.values();
+        if (typeof options !== "object") options = [options]
         if (options instanceof Array) {
             const ids = options.map(id => (id instanceof Array) ? id.join("#") : id)
             return ids.map(id => this.data[id]).filter(v => v);
@@ -122,7 +125,7 @@ class DBCache extends EventEmitter {
     }
 
     /**
-     * @param {Object.<string, any>|Array.<string>|string|number|T|(value: T, index: number, array: T[]) => boolean} options
+     * @param {Resolvable|(value: T, index: number, array: T[]) => boolean} options
      */ 
     find(options) {
         if (!options) return null;
@@ -140,7 +143,7 @@ class DBCache extends EventEmitter {
     }
 
     /**
-     * @param {Object.<string, any>|T} filter
+     * @param {Resolvable} filter
      * @returns {T[]}
      */
     filterOut(filter) {
@@ -191,7 +194,7 @@ class DBCache extends EventEmitter {
     }
     
     /**
-     * @param {Object.<string, any>} selector
+     * @param {Resolvable} selector
      * @param {T|Object.<string, any>} data
      */
     update(selector, data) {
