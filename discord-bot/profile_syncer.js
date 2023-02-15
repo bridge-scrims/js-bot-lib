@@ -49,8 +49,8 @@ class UserProfileUpdater {
 
     /** @param {GuildMember} member */
     async onMemberAdd(member) {
-        if (member.guild.id !== this.bot.hostGuildId || this.bot.servesHost)
-            await this.ensureProfile(member.user).catch(console.error)
+        if (member.guild.id !== this.bot.hostGuildId || this.bot.servesHost) await this.ensureProfile(member.user)
+        await this.ensureProfileJoinedAt(member)
     }
 
     /** @param {BaseGuild[]} guilds */
@@ -69,7 +69,8 @@ class UserProfileUpdater {
 
         const members = await guild.members.fetch()
         const profiles = await this.database.users.fetchMap({}, ["user_id"])
-        await Promise.all(members.map(m => this.ensureProfile(m.user, profiles).catch(console.error)))
+        await Promise.all(members.map(m => this.ensureProfile(m.user, profiles))).catch(console.error)
+        await Promise.all(members.map(m => this.ensureProfileJoinedAt(m, profiles))).catch(console.error)
 
         for await (const bans of DiscordUtil.multiFetch(guild.bans, 1000))
             await Promise.all(
@@ -83,9 +84,24 @@ class UserProfileUpdater {
      * @param {Object.<string, UserProfile>} [profiles]
      */
     async ensureProfile(user, profiles) {
-        const profile = profiles ? profiles[user.id] : this.database.users.cache.find({ user_id: user.id })
-        if (!profile) await this.createProfile(user)
+        const profile = profiles ? profiles[user.id] : this.database.users.cache.find(user.id)
+        if (!profile) await this.createProfile(user).then(profile => {
+            if (profiles && profile) profiles[user.id] = profile
+        })
         else if (!profiles) await this.update(user, profile)
+    }
+
+    /** 
+     * @param {GuildMember} member
+     * @param {Object.<string, UserProfile>} [profiles]
+     */
+    async ensureProfileJoinedAt(member, profiles) {
+        if (member.guild.id === this.bot.hostGuildId && this.bot.servesHost) {
+            const profile = profiles ? profiles[member.id] : this.database.users.cache.find(member.id)
+            if (profile && !profile.joined_at && member.joinedTimestamp) 
+                await this.database.users.update(profile, { joined_at: Math.floor(member.joinedTimestamp / 1000) })
+                    .catch(err => console.error(`Unable to update profile joined_at for ${member.id}: ${err}`, member.joinedTimestamp))
+        }
     }
     
     /** 
