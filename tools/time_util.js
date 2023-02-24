@@ -1,17 +1,5 @@
 const moment = require('moment-timezone');
-
-const Countries = require('../../assets/countries.json')
-    .map(country => {
-        return {
-            'name': country.name,
-            'native': country.nativeName,
-            'population': country.population,
-            'alpha2': country['alpha2Code'],
-            'alpha3': country['alpha3Code'],     
-            ...Object.fromEntries(Object.entries(country['translations']).filter(([key, value]) => value)),
-            ...Object.fromEntries(country.altSpellings.map((v, i) => [`altSpelling_${i}`, v]))
-        }
-    });
+const RESTCountriesClient = require('../apis/countries');
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -24,7 +12,7 @@ class TimeUtil {
 
         const time = content.split(':')
         if (time.length !== 2) 
-            return { success: false, error: 'Time should be in format \`hour\`**:**\`minute\` \`(AM/PM)\`**!**' };
+            return { success: false, error: 'Time should be in format `hour`**:**`minute` `(AM/PM)`**!**' };
 
         let hour = parseInt((time[0].match(/\d/g) || []).join(''))
         if (isNaN(hour)) 
@@ -45,37 +33,6 @@ class TimeUtil {
             return { success: false, error: 'The minute must be a number between 0-60.' };
 
         return { success: true, value: (((hour*60)+minute)*60*1000), hour, minute };
-    }
-
-    static parseDate(content, today) {
-        today.set('milliseconds', 0).set('seconds', 0).set('minutes', 0).set('hours', 0)
-        if (content.toUpperCase().split(' ').some(item => item == 'TODAY')) return { success: true, value: today.valueOf(), day: today.date(), month: today.month(), year: today.year() };
-        if (content.toUpperCase().split(' ').some(item => item == 'TOMORROW')) return { success: true, value: today.add(1, 'day').valueOf(), day: today.date(), month: today.month(), year: today.year() };
-
-        const format1 = content.split('/')
-        const format2 = content.split('.')
-        const date = (format1.length === 3) ? [format1[1], format1[0], format1[2]] : ((format2.length === 3) ? format2 : null)
-        if (date === null) return { success: false, error: 'Date should be in format **MM/DD/YYYY** or **DD.MM.YYYY**!' };
-
-        const day = parseInt((date[0].match(/\d/g) || []).join(''))
-        if (isNaN(day)) 
-            return { success: false, error: 'The day must be a number!' };
-        if (day < 1 || day > 31) 
-            return { success: false, error: 'The day must be a number between 1-31.' };
-
-        const month = parseInt((date[1].match(/\d/g) || []).join(''))
-        if (isNaN(month)) 
-            return { success: false, error: 'The month must be a number.' };
-        if (month < 1 || month > 12) 
-            return { success: false, error: 'The month must be a number between 1-12.' };
-
-        const year = parseInt((date[2].match(/\d/g) || []).join(''))
-        if (isNaN(year)) 
-            return { success: false, error: 'The year must be a number.' };
-        if (year < 0) 
-            return { success: false, error: 'The year must be a number greater then 0.' };
-
-        return { success: true, value: (new Date(year, month-1, day)).getTime(), day, month: month-1, year };
     }
 
     static extractOffset(content) {
@@ -124,7 +81,7 @@ class TimeUtil {
 
     static stringifyOffset(value) {
         const offset = this.getOffset(value) * -1
-        if (!offset) return null;
+        if (!offset) return `±00:00`;
         return ((offset < 0) ? '-' : '+')
                 + (`${Math.abs(Math.floor(offset/60)).toString().padStart(2, '0')}:${Math.abs(offset % 60).toString().padStart(2, '0')}`);
     }
@@ -137,20 +94,32 @@ class TimeUtil {
                 const amount = Math.round(diff / value)
                 diff -= (amount * value)
                 return [unit, amount];
-            }).filter(([unit, amount]) => amount > 0).slice(0, length).map(([unit, value]) => `**${value}**\`${(value > 1 ? `${unit}s` : unit)}\``)
+            }).filter(([_, amount]) => amount > 0).slice(0, length).map(([unit, value]) => `**${value}**\`${(value > 1 ? `${unit}s` : unit)}\``)
         if (remainder.length < 1) return '**right now**';
         return (introduce ? 'in ' : '') + (bind ? (remainder.slice(0, -1).join(', ') + ' and ' + remainder.slice(-1)[0]) : remainder.join(' '))
     }
 
+    /** @param {import('../apis/countries').Country} country */
+    static getCountryAliases(country) {
+        /** @param {import('../apis/countries').NameData} d */
+        const from_name_data = (d) => [d?.common, d?.official]
+        return [
+            country.cca2, country.cca3, country.ccn3,
+            ...Object.values(country.name.nativeName || {}).map(from_name_data).flat(),
+            ...from_name_data(country.name), ...country.altSpellings,
+            ...Object.values(country.translations).map(from_name_data).flat()
+        ].filter(v => typeof v === 'string')
+    }
+
     static parseCountry(value) {
-        for (const country of Countries)
-            if (Object.values(country).filter(item => typeof item === 'string').map(item => item.toLowerCase()).includes(value.toLowerCase()))
+        for (const country of RESTCountriesClient.Countries)
+            if (this.getCountryAliases(country).map(item => item.toLowerCase()).includes(value.toLowerCase()))
                 return country;
         return null;
     }
 
     static countryZones(country) {
-        return moment.tz.zonesForCountry((typeof country === 'object') ? country['alpha2'] : country).map(tz => moment.tz.zone(tz))
+        return moment.tz.zonesForCountry((typeof country === 'object') ? country.cca2 : country)?.map(tz => moment.tz.zone(tz)) || []
     }
 
     static countryOffsets(country) {

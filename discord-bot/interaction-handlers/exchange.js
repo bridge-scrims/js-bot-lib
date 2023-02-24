@@ -173,7 +173,7 @@ class State {
             return ((value.length > 0) ? value.map(v => (v?.id || v?.user_id) ? `${v} (${v?.user_id ?? v?.id})` : `**${v.slice(0, 37)}**`).map(v => `\`•\` ${v}`).join("\n").slice(0, 1024) : `\`\`\` \`\`\``);
         
         if (type === 'Country' && value)
-            return `\`\`\`${value.native}\`\`\``;
+            return `\`\`\`${value.name.common}\`\`\``;
 
         if (type === 'Time' && value?.success)
             return `\`\`\`${inputted} (${TimeUtil.stringifyOffset(value.value)})\`\`\``;
