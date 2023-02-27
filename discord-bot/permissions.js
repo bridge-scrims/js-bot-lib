@@ -329,7 +329,13 @@ class PermissionsManager extends EventEmitter {
     }
 
     hasRole(guildId, userId, roleId) {
-        return this._resolveGuild(guildId)?.members?.cache?.get(userId)?.roles?.cache?.has(roleId);
+        const guild = this._resolveGuild(guildId)
+        if (!guild) return undefined; // bot is not in guild
+        // if the guild members couldn't be fetched or something
+        if (guild.members.cache.size < 3) return undefined;
+        const member = guild.members.cache.get(userId)
+        if (!member) return false; // user is not in guild
+        return member.roles.cache.has(roleId);
     }
 
     isBanned(guildId, userId) {

@@ -11,7 +11,6 @@ const Game = require('../database/game');
 
 const DiscordAttachment = require('../database/attachment');
 const TicketMessage = require('../database/ticket_message');
-const TicketStatus = require('../database/ticket_status');
 const Ticket = require("../database/ticket");
 
 const UserProfile = require('../database/user_profile');
@@ -32,8 +31,15 @@ const DBTable = require('./table');
 
 const EventEmitter = require('events');
 
+class DBError extends Error {
 
-class DBError extends Error {}
+    constructor(message, query) {
+        super(message)
+        this.query = query
+    }
+
+}
+
 class DBClient extends EventEmitter {
 
     static Error = DBError
@@ -105,17 +111,8 @@ class DBClient extends EventEmitter {
         /** @type {DBTable<TicketMessage>} */
         this.ticketMessages
 
-        /** @type {DBTable<DBType>} */
-        this.ticketTypes
-
-        /** @type {DBTable<TicketStatus>} */
-        this.ticketStatuses
-
         /** @type {DBTable<Ticket>} */
         this.tickets
-
-        /** @type {DBTable<DBType>} */
-        this.sessionTypes
 
         /** @type {DBTable<Session>} */
         this.sessions
@@ -128,9 +125,6 @@ class DBClient extends EventEmitter {
 
         /** @type {Vouch.Table} */
         this.vouches
-
-        /** @type {DBTable<DBType>} */
-        this.gameTypes
 
         /** @type {DBTable<Game>} */
         this.games
@@ -158,11 +152,8 @@ class DBClient extends EventEmitter {
         this._addTable("guildEntries", new DBTable(this, "guild_entry", { lifeTime: -1 }, GuildEntry))
 
         this._addTable("ticketMessages", new DBTable(this, "ticket_message", {}, TicketMessage))
-        this._addTable("ticketTypes", new DBTable(this, 'ticket_type', { lifeTime: -1 }, DBType))
-        this._addTable("ticketStatuses", new DBTable(this, 'ticket_status', { lifeTime: -1 }, TicketStatus))
         this._addTable("tickets", new DBTable(this, 'ticket', {}, Ticket))
 
-        this._addTable("sessionTypes", new DBTable(this, "session_type", { lifeTime: -1 }, DBType))
         this._addTable("sessions", new DBTable(this, "session", { lifeTime: -1 }, Session))
         
         this._addTable("sessionParticipants", new DBTable(this, "session_participant", {}, SessionParticipant))
@@ -170,7 +161,6 @@ class DBClient extends EventEmitter {
         
         this._addTable("vouches", new Vouch.Table(this))
 
-        this._addTable("gameTypes", new DBTable(this, "game_type", { lifeTime: -1 }, DBType))
         this._addTable("games", new DBTable(this, "game", {}, Game))
         this._addTable("gameParticipants", new DBTable(this, "game_participant", {}, GameParticipant))
 
@@ -290,13 +280,14 @@ class DBClient extends EventEmitter {
                 for (const row of result.rows) {
                     for (const column of bigintColumns) {
                         const num = parseInt(row?.[column])
-                        if (Number.isSafeInteger(num)) row[column] = num
+                        // This is for timestamps since they are stored as bigints but are small enough to fit in a js int
+                        if (!isNaN(num) && Number.isSafeInteger(num)) row[column] = num
                     }
-                } 
+                }
             }
             return result;
         }catch (err) {
-            throw new DBError(err?.message)
+            throw new DBError(err?.message, query)
         }
     }
   

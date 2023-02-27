@@ -1,17 +1,22 @@
-const { User, Guild, EmbedBuilder, GuildMember } = require("discord.js");
-const { CDN } = require('@discordjs/rest');
+const { User, Guild, EmbedBuilder, time, CDN, GuildMember } = require("discord.js");
+const moment = require("moment-timezone");
+
+const RESTCountriesClient = require("../apis/countries");
+const MojangClient = require("../apis/mojang");
 
 const { Colors } = require("../tools/constants");
-const TableRow = require("../postgresql/row");
-const moment = require("moment-timezone");
+const TimeUtil = require("../tools/time_util");
+
 const UserPermissionsCollection = require("./collections/user_permissions");
 const PermissionData = require("./permission_data");
+const TableRow = require("../postgresql/row");
+
+const CDN_BUILDER = new CDN()
 
 /**
  * @typedef {string|UserProfile|User} UserResolvable
  */
 
-const CDN_BUILDER = new CDN()
 class UserProfile extends TableRow {
 
     /** @param {?User} user */
@@ -26,7 +31,7 @@ class UserProfile extends TableRow {
         const user = (resolvable instanceof GuildMember) ? resolvable.user : resolvable
         return new UserProfile(resolvable.client.database).setDiscord(user)
     }
-
+    
     constructor(client, profileData) {
 
         super(client, profileData)
@@ -34,20 +39,17 @@ class UserProfile extends TableRow {
         /** @type {string} */
         this.user_id
 
-        /** @type {number} */
-        this.joined_at
-
         /** @type {string} */
         this.username
 
-        /** @type {string} */
+        /** @type {number} */
         this.discriminator
 
         /** @type {?number} */
-        this.accent_color
+        this.joined_at
 
         /** @type {?string} */
-        this.avatar
+        this.mc_uuid
 
         /** @type {?string} */
         this.country
@@ -62,13 +64,23 @@ class UserProfile extends TableRow {
         return this.bot.users.resolve(this.user_id);
     }
 
-    get tag() {
-        return `${this.username}#${`${this.discriminator}`.padStart(4, '0')}`;
+    async fetchUser() {
+        if (!this.bot || !this.user_id) return null;
+        return this.bot.users.fetch(this.user_id);
     }
 
     get mention() {
-        if (!this.user_id) return undefined;
+        if (!this.user_id) return `*Unknown User*`;
         return `<@${this.user_id}>`;
+    }
+
+    get tag() {
+        const lastKnownTag = `${this.username}#${`${this.discriminator}`.padStart(4, '0')}`;
+        return this.user?.tag || lastKnownTag || `Unknown User`;
+    }
+
+    get name() {
+        return this.user?.username || this.username;
     }
 
     toString() {
@@ -85,54 +97,46 @@ class UserProfile extends TableRow {
         return this;
     }
 
-    /** @param {number} [joined_at] if falsely will use the current time */
-    setJoinPoint(joined_at) {
-        this.joined_at = joined_at ?? Math.floor(Date.now()/1000)
-        return this;
-    }
-
     /** @param {string|number} discriminator */
     setDiscriminator(discriminator) {
-        if (typeof discriminator === 'string') discriminator = parseInt(discriminator)
-        this.discriminator = discriminator
+        this.discriminator = parseInt(discriminator) || null
         return this;
     }
 
-    /** @param {string} avatar */
-    setAvatar(avatar) {
-        this.avatar = avatar
-        return this;
-    }
-
-    /** 
-     * ***Force fetch the user first!***
-     * @param {User} user 
-     */
+    /** @param {User} user */
     setDiscord(user) {
         this.user_id = user.id
         this.username = user.username
         this.setDiscriminator(user.discriminator)
-        this.accent_color = user.accentColor ?? null
-        this.setAvatar(user.avatar ?? null)
+        return this;
+    }    
+
+    /** @param {number} [joined_at] if undefined will use the current time */
+    setJoinPoint(joined_at=Math.floor(Date.now()/1000)) {
+        this.joined_at = joined_at
         return this;
     }
 
-    /** @param {string} country */
+    /** @param {?string} uuid */
+    setMCUUID(uuid) {
+        this.mc_uuid = uuid
+        return this;
+    }
+
+    /** @param {?string} country */
     setCountry(country) {
         this.country = country
         return this;
     }
 
-    /** @param {string} timezone */
+    /** @param {?string} timezone */
     setTimezone(timezone) {
         this.timezone = timezone
         return this;
     }
 
-    getMention(format=true, guild=false) {
-        if (this.user && (!guild || this.getMember(guild))) return `${this.user}`;
-        if (this.tag) return (format? `**@${this.tag}**` : `@${this.tag}`);
-        return (format ? "*unknown*" : "unknown");
+    get countryName() {
+        return RESTCountriesClient.Countries.find(v => v.cca3 === this.country)?.name?.common || this.country;
     }
 
     getCurrentTime() {
@@ -140,19 +144,38 @@ class UserProfile extends TableRow {
         return moment.tz(moment(), this.timezone);        
     }
 
+    getUTCOffset() {
+        return TimeUtil.stringifyOffset(this.timezone);
+    }
+
+    async fetchMCUsername() {
+        if (!this.mc_uuid) return "Unknown User";
+        return MojangClient.fetchName(this.mc_uuid)
+    }
+
+    mcHeadURL() {
+        return `https://mc-heads.net/head/${this.mc_uuid || 'MHF_Steve'}/left`;
+    }
+
+    avatarURL() {
+        return this.user?.displayAvatarURL() || CDN_BUILDER.defaultAvatar(this.discriminator % 5)
+    }
+
+    /** @returns {import("discord.js").EmbedAuthorData} */
+    toEmbedAuthor() {
+        return { name: this.tag, iconURL: this.avatarURL() };
+    }
+
     /** @param {Guild} [guild] */
     getMember(guild) {
         if (!guild || !this.user_id) return null;
-        return guild.members.cache.get(this.user_id) ?? null;
+        return guild.members.cache.get(this.user_id) || null;
     }
 
-    getUTCOffset() {
-        if (!this.timezone) return null;
-        const seconds = moment.parseZone(this.timezone)?.utcOffset()
-        if (!seconds) return null;
-        const hours = `${Math.floor(Math.abs(seconds)/60)}`.padStart(2, '0')
-        const minutes = `${Math.round(Math.abs(seconds)%60)}`.padEnd(2, '0')
-        return `${(seconds < 0) ? '-' : '+'}${hours}:${minutes}`
+    /** @param {Guild} [guild] */
+    async fetchMember(guild) {
+        if (!guild || !this.user_id) return null;
+        return guild.members.fetch(this.user_id);
     }
 
     async fetchPermissions() {
@@ -165,32 +188,21 @@ class UserProfile extends TableRow {
         return (new UserPermissionsCollection(this.client, this.user_id)).set(permissions);
     }
 
-    /** @returns {string} The user's avatar URL or default avatar URL */
-    avatarURL() {
-        if (!this.avatar) return CDN_BUILDER.defaultAvatar(this.discriminator % 5)
-        return CDN_BUILDER.avatar(this.user_id, this.avatar)
-    }
-
-    /** @returns {import("discord.js").EmbedAuthorData} */
-    toEmbedAuthor() {
-        return { name: this.tag, iconURL: this.avatarURL() };
-    }
-
     /**
      * @param {Guild} guild
      */
     toEmbed(guild) {
         const member = (guild ? this.getMember(guild) : null)
-        const title = this.tag + ((member && member.displayName.toLowerCase() !== this.username.toLowerCase()) ? ` (${member.displayName})` : '')
+        const title = this.tag + ((member && member.displayName.toLowerCase() !== this.name.toLowerCase()) ? ` (${member.displayName})` : '')
         const embed = new EmbedBuilder()
             .setTitle(title)
-            .setThumbnail(this.avatarURL())
-            .setColor(member?.displayColor ?? this.accent_color ?? Colors.ScrimsRed)
+            .setThumbnail(member?.displayAvatarURL() || this.user?.displayAvatarURL() || null)
+            .setColor(member?.displayColor || this.user?.hexAccentColor || Colors.ScrimsRed)
             .addFields({ name: "User ID", value: this.user_id, inline: true })
             
-        if (this.joined_at) embed.addFields({ name: "Registered At", value: `<t:${this.joined_at}:d>`, inline: true })
-        if (this.country) embed.addFields({ name: "Country", value: this.country, inline: true })
-        if (this.getUTCOffset()) embed.addFields({ name: "Timezone", value: `${this.timezone} (${this.getUTCOffset()})`, inline: true })
+        if (this.joined_at) embed.addFields({ name: "Registered At", value: time(this.joined_at, "d"), inline: true })
+        if (this.country) embed.addFields({ name: "Country", value: this.countryName, inline: true })
+        if (this.timezone) embed.addFields({ name: "Timezone", value: `${this.timezone} (${this.getUTCOffset()})`, inline: true })
         if (member && this.bot) {
             const positions = this.bot.permissions.getMemberPositions(member)
             if (positions.length > 0) embed.addFields({ 

@@ -3,7 +3,7 @@ const TableRow = require("../postgresql/row");
 const GuildProfile = require("./guild");
 const DBType = require("./type");
 
-const NONE = 'None'
+const NONE = 0;
 
 class GuildEntry extends TableRow {
 

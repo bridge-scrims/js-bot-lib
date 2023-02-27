@@ -63,7 +63,7 @@ class SQLTableQueryBuilder extends SQLQueryBuilder {
         return (obj, params) => {
             for (const [localKey, [column, foreignTable, foreignColumn]] of Object.entries(this.foreigners)) {
                 if (localKey in obj) {
-                    const subQuery = `(SELECT %s FROM ${foreignTable} _v WHERE ${THIS}."${column}"=_v."${foreignColumn}")`
+                    const subQuery = `(SELECT %s FROM ${foreignTable} "_v" WHERE ${THIS}."${column}"="_v"."${foreignColumn}")`
                     Object.entries(obj[localKey])
                         .forEach(([key, val]) => obj[TextUtil.format(subQuery, key)] = val)
                     delete obj[localKey]

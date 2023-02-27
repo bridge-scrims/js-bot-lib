@@ -1,4 +1,4 @@
-const { EmbedBuilder, userMention } = require("discord.js");
+const { EmbedBuilder, userMention, time } = require("discord.js");
 const TableRow = require("../postgresql/row");
 
 const { userAsEmbedAuthor } = require("../tools/discord_util");
@@ -211,7 +211,7 @@ class Suggestion extends TableRow {
      */
     toEmbedField(resolvable) {
         const options = this.resolveEmbedOptions(resolvable)
-        const info = `**Created by ${userMention(this.creator_id)} on <t:${this.created_at}:F>**`
+        const info = `**Created by ${userMention(this.creator_id)} on ${time(this.created_at, "F")}**`
         const msg = TextUtil.limitText(options.idea, 1024 - info.length - 8, "\n...")
         return ({
             name: options.title || 'Suggestion',

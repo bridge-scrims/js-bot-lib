@@ -37,7 +37,7 @@ class Position extends NamedRow {
         return this.name === "banned";
     }
 
-    get dontLog() {
+    get silent() {
         return this.name === "bridge_scrims_member";
     }
 
@@ -69,6 +69,10 @@ class Position extends NamedRow {
     getConnectedRoles(guild_id) {
         return this.client.positionRoles.cache.get({ id_position: this.id_position, guild_id })
             .map(posRole => posRole.role).filter(v => v);
+    }
+
+    getConnectedRoleIds(guild_id) {
+        return this.getConnectedRoles(guild_id).map(r => r.id)
     }
 
     isRank() {

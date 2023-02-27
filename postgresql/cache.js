@@ -1,6 +1,8 @@
 const EventEmitter = require("events");
 
-/** @template [T=import("./row")] */
+/** 
+ * @template [T=import("./row")] Type that this cache holds.
+ */
 class DBCache extends EventEmitter {
 
     /** @typedef {Object.<string, any>|Array.<string>|string|number|T} Resolvable */

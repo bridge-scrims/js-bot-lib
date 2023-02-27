@@ -3,9 +3,15 @@ const { SQLTableQueryBuilder } = require("./query");
 const DBCache = require("./cache")
 const TableRow = require("./row");
 
-/** @template [T=import("./row")] */
+/** 
+ * @template [T=import("./row")] Type of row this table holds.
+ */
 class DBTable {
 
+    /**
+     * @param {string} name
+     * @param {T} RowClass 
+     */
     constructor(client, name, cacheOptions, RowClass) {
 
         Object.defineProperty(this, 'client', { value: client });
@@ -16,7 +22,7 @@ class DBTable {
          */
         this.client
         
-        /** @type {string} */
+        /** @readonly */
         this.name = name
 
         this.queryBuilder = new SQLTableQueryBuilder(this)
@@ -24,10 +30,7 @@ class DBTable {
         /** @type {DBCache<T>} */
         this.cache = new DBCache(cacheOptions)
 
-        /** 
-         * @protected
-         * @type {T.constructor} 
-         */
+        /** @protected */
         this.RowClass = RowClass
         this.RowClass.table = this.name
 
@@ -165,14 +168,6 @@ class DBTable {
             throw result;
         }
         return result;
-    }
-
-    /** 
-     * @deprecated Use delete instead!
-     * @param {Object.<string, any>|T|string|number|Array.<string>} [selector] If falsely, deletes all.
-     */
-    async remove(selector) {
-        return this.delete(selector);
     }
 
     /** 

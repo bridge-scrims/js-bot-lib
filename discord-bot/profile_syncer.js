@@ -35,15 +35,10 @@ class UserProfileUpdater {
     async update(user, profile) {
         if (!profile) profile = this.database.users.cache.find({ user_id: user.id })
         if (profile) {
-            await user.fetch(true)
-            if (profile.tag !== user.tag || profile.avatar !== user.avatar || profile.accent_color !== user.accentColor) {
-                await this.updateProfile(profile, {
-                    username: user.username, 
-                    discriminator: user.discriminator,
-                    accent_color: user.accentColor,
-                    avatar: user.avatar
-                })
-            }
+            const updated = profile.clone().setDiscord(user)
+            if (!profile.exactlyEquals(updated)) 
+                await this.database.users.sqlUpdate(profile, updated)
+                    .catch(err => console.error(`Unable to update profile for ${profile.user_id}! (${err})`, changes))
         }
     }
 
@@ -55,18 +50,14 @@ class UserProfileUpdater {
 
     /** @param {BaseGuild[]} guilds */
     async initialize(guilds) {
-
         console.log("Initializing profiles...")
         await Promise.all(guilds.map(guild => this.initializeGuildMembers(guild).catch(console.error)))
         console.log("Profiles initialized!")
-
     }
 
-    /** @param {Guild} guild */
-    async initializeGuildMembers(guild) {
-
-        guild = await guild.fetch()
-
+    /** @param {BaseGuild} base */
+    async initializeGuildMembers(base) {
+        const guild = await base.fetch()
         const members = await guild.members.fetch()
         const profiles = await this.database.users.fetchMap({}, ["user_id"])
         await Promise.all(members.map(m => this.ensureProfile(m.user, profiles))).catch(console.error)
@@ -85,10 +76,11 @@ class UserProfileUpdater {
      */
     async ensureProfile(user, profiles) {
         const profile = profiles ? profiles[user.id] : this.database.users.cache.find(user.id)
-        if (!profile) await this.createProfile(user).then(profile => {
+        if (!profile) return this.createProfile(user).then(profile => {
             if (profiles && profile) profiles[user.id] = profile
+            return profile || null;
         })
-        else if (!profiles) await this.update(user, profile)
+        return this.update(user, profile).then(() => profile)
     }
 
     /** 
@@ -100,25 +92,14 @@ class UserProfileUpdater {
             const profile = profiles ? profiles[member.id] : this.database.users.cache.find(member.id)
             if (profile && !profile.joined_at && member.joinedTimestamp) 
                 await this.database.users.sqlUpdate(profile, { joined_at: Math.floor(member.joinedTimestamp / 1000) })
-                    .catch(err => console.error(`Unable to update profile joined_at for ${member.id}: ${err}`, member.joinedTimestamp))
+                    .catch(err => console.error(`Unable to update profile joined_at for ${member.id} (${err})!`, member.joinedTimestamp))
         }
     }
     
-    /** 
-     * @param {User} user
-     */
+    /** @param {User} user */
     async createProfile(user) {
         return this.bot.database.users.create(UserProfile.fromUser(user))
             .catch(error => console.error(`Unable to make profile for ${user.id}! (${error})`))
-    }
-
-    /**
-     * @param {UserProfile} profile 
-     * @param {Object.<string, any>} changes
-     */
-    async updateProfile(profile, changes) {
-        await this.bot.database.users.update(profile, changes)
-            .catch(error => console.error(`Unable to update profile for ${profile.user_id}! (${error})`, changes))
     }
 
 }

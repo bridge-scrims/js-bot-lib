@@ -49,7 +49,7 @@ class TicketMessage extends TableRow {
     }
 
     isCacheExpired(now) {
-        return (!this.ticket || this.ticket.status?.name === "deleted") && (!now || super.isCacheExpired(now));
+        return (!this.ticket || this.ticket.status === "deleted") && (!now || super.isCacheExpired(now));
     }
 
     /**

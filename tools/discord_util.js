@@ -1,4 +1,4 @@
-const { User, GuildMember, Collection, userMention } = require("discord.js");
+const { User, GuildMember, Guild, Collection, userMention } = require("discord.js");
 
 class DiscordUtil {
 
@@ -53,6 +53,45 @@ class DiscordUtil {
     static userMention(userId, unknown="") {
         if (!userId) return unknown;
         return userMention(userId);
+    }
+
+    /**
+     * @param {string} resolvable 
+     * @param {import('../database/user_profile')[]} profiles 
+     * @param {Guild} guild 
+     * @returns {import('../database/user_profile')|GuildMember|null}
+     */
+    static parseUser(resolvable, profiles, guild) {
+        resolvable = resolvable.replace(/```|:|\n|@/g, '')
+        
+        let matches = profiles.filter(user => [user.user_id, user.tag, user.username].includes(resolvable))
+        if (matches.length === 1) return matches[0];
+
+        if (guild) {
+            const members = Array.from(guild.members.cache.values())
+            matches = members.filter(user => user.displayName === resolvable)
+            if (matches.length === 1) return matches[0].user;
+
+            matches = members.filter(m => m.user.tag === resolvable)
+            if (matches.length === 1) return matches[0].user;
+        }
+
+        // Same as above but everything to lower case
+        resolvable = resolvable.toLowerCase()
+
+        matches = profiles.filter(user => [user.user_id, user.tag, user.username].map(v => v.toLowerCase()).includes(resolvable))
+        if (matches.length === 1) return matches[0];
+
+        if (guild) {
+            const members = Array.from(guild.members.cache.values())
+            matches = members.filter(user => user.displayName.toLowerCase() === resolvable)
+            if (matches.length === 1) return matches[0].user;
+
+            matches = members.filter(m => m.user.tag.toLowerCase() === resolvable)
+            if (matches.length === 1) return matches[0].user;
+        }
+
+        return null;
     }
 
 }

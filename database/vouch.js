@@ -1,10 +1,12 @@
+const { Role, time } = require("discord.js");
+
 const UserPositionVouchCollection = require("./collections/user_vouches");
 const I18n = require("../tools/internationalization");
 const DBTable = require("../postgresql/table");
 const TableRow = require("../postgresql/row");
 const UserProfile = require("./user_profile");
 const Position = require("./position");
-const { Role } = require("discord.js");
+
 
 /** @extends {DBTable<ScrimsVouch>} */
 class VouchesTable extends DBTable {
@@ -174,18 +176,18 @@ class ScrimsVouch extends TableRow {
      * @returns {import("discord.js").EmbedField}
      */
     toEmbedField(i18n, councilRole = null, idx = null) {
-        const time = `<t:${this.given_at}:D>` 
+        const given_at = time(this.given_at, "D")
 
         if (this.executor_id) {
             const resourceId = "vouches.to_field." + (!this.isPositive() ? "negative" : (this.isExpired() ? "expired" : "positive"))
             return i18n.getObject(
                 resourceId, this.executorProfile?.mention ?? 'Unknown User', 
-                this.comment || undefined, this.executorProfile?.username, time, idx || undefined
+                this.comment || undefined, this.executorProfile?.username, given_at, idx || undefined
             )
         }
 
         const resourceId = "vouches.to_field." + (this.isPositive() ? "accepted" : this.isPurge() ? "purged" : "denied")
-        return i18n.getObject(resourceId, councilRole ? `${councilRole}` : `council`, this.comment || undefined, time, idx || undefined);
+        return i18n.getObject(resourceId, councilRole ? `${councilRole}` : `council`, this.comment || undefined, given_at, idx || undefined);
     }
 
     /**

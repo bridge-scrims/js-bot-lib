@@ -6,6 +6,8 @@ const {
 const MessageOptionsBuilder = require("../../tools/payload_builder");
 const StateComponentHandler = require("./state_components");
 const MojangClient = require("../../apis/mojang");
+
+const DiscordUtil = require("../../tools/discord_util");
 const TextUtil = require("../../tools/text_util");
 const TimeUtil = require("../../tools/time_util");
 
@@ -29,7 +31,7 @@ class Parser {
         const profiles = guild.client.database.users.cache.values()
         const userResolvables = text.split('@').map(v => v.trim()).filter(v => v.length > 0).slice(0, 10)
 
-        return userResolvables.map(resolvable => (TextUtil.parseUser(resolvable, profiles, guild)) ?? `${resolvable}`);
+        return userResolvables.map(resolvable => (DiscordUtil.parseUser(resolvable, profiles, guild)) ?? `${resolvable}`);
     }
 
     async parseMCAccount(ign) {

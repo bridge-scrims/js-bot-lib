@@ -1,12 +1,12 @@
-const TableRow = require("../postgresql/row");
+const { time } = require("discord.js");
 
 const MessageOptionsBuilder = require("../tools/payload_builder");
 const I18n = require("../tools/internationalization");
 const { Colors } = require("../tools/constants");
 const TextUtil = require("../tools/text_util");
 
+const TableRow = require("../postgresql/row");
 const SessionParticipant = require("./session_participant");
-const DBType = require("./type");
 
 class Session extends TableRow {
 
@@ -18,8 +18,8 @@ class Session extends TableRow {
         this.id_session
         if (!this.id_session) this.setId()
 
-        /** @type {number} */
-        this.id_type
+        /** @type {string} */
+        this.type
 
         /** @type {string} */
         this.creator_id
@@ -38,14 +38,11 @@ class Session extends TableRow {
         return this;
     }
 
-    get type() {
-        return this.client.sessionTypes.cache.find(this.id_type);
-    }
-
-    /** @param {number|string|Object.<string, any>|DBType} typeResolvable */
-    setType(typeResolvable) {
-        if (typeof typeResolvable === "string") typeResolvable = { name: typeResolvable }
-        this._setForeignObjectKeys(this.client.sessionTypes, ['id_type'], ['id_type'], typeResolvable)
+    /** 
+     * @param {'prime_vouch_duel'} type 
+     */
+    setType(type) {
+        this.type = type
         return this;
     }
 
@@ -82,16 +79,6 @@ class Session extends TableRow {
         return this;
     }
 
-    /** 
-     * @override
-     * @param {Object.<string, any>} sessionData 
-     */
-    update(sessionData) {
-        super.update(sessionData)
-        this.setType(sessionData.type)
-        return this;
-    }
-
     getDuration() {
         if (!this.started_at || !this.ended_at) return `*unknown*`;
         return TextUtil.stringifyTimeDelta(this.ended_at - this.started_at);
@@ -99,12 +86,12 @@ class Session extends TableRow {
 
     getStart() {
         if (!this.started_at) return `*unknown*`;
-        return `<t:${this.started_at}:f>`;
+        return time(this.started_at, 'f');
     }
 
     getEnd() {
         if (!this.ended_at) return `*unknown*`;
-        return `<t:${this.ended_at}:f>`;
+        return time(this.ended_at, 'f');
     }
 
     /**
@@ -113,7 +100,7 @@ class Session extends TableRow {
     toEmbed(i18n) {
         return i18n.getEmbed(
             "sessions.summary", { 
-                title: [this.type?.titleName ?? this.id_type], 
+                title: [TextUtil.snakeToUpperCamelCase(this.type)], 
                 description: [
                     this.id_session, `${this.creatorProfile}`, this.getStart(), 
                     this.getEnd(), this.getDuration() 
@@ -143,7 +130,7 @@ class Session extends TableRow {
      */
     getDetails(i18n, participants) {
         return i18n.get(
-            "sessions.details", this.type?.titleName ?? this.id_type, `${this.creatorProfile}`, 
+            "sessions.details", TextUtil.snakeToUpperCamelCase(this.type), `${this.creatorProfile}`, 
             this.getStart(), this.getDuration(), participants.length
         )
     }

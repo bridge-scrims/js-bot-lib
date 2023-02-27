@@ -1,36 +1,7 @@
-const { Guild, GuildMember } = require("discord.js");
 const { default: parseDuration } = require("parse-duration");
 const util = require('util');
 
 class TextUtil {
-
-    /**
-     * @param {string} resolvable 
-     * @param {import('../database/user_profile')[]} profiles 
-     * @param {Guild} guild 
-     * @returns {import('../database/user_profile')|GuildMember|null}
-     */
-    static parseUser(resolvable, profiles, guild) {
-        resolvable = resolvable.replace(/```|:|\n|@/g, '')
-        const dbMatches = profiles.filter(user => [user.user_id, user.tag, user.username].includes(resolvable))
-        if (dbMatches.length === 1) return dbMatches[0];
-
-        if (guild) {
-            const members = Array.from(guild.members.cache.values())
-            const displayNameMatches = members.filter(user => user.displayName === resolvable)
-            if (displayNameMatches.length === 1) return displayNameMatches[0].user;
-
-            const tagMatches = members.filter(m => m.user.tag === resolvable)
-            if (tagMatches.length === 1) return tagMatches[0].user;
-        }
-
-        const caselessDBMatches = profiles.filter(user => (
-            [user.user_id, user.tag, user.username]
-                .filter(v => v).map(v => v.toLowerCase()).includes(resolvable.toLowerCase())
-        ))
-        if (caselessDBMatches.length === 1) return caselessDBMatches[0];
-        return null;
-    }
 
     static parseDuration(input) {
         return parseDuration(input);
@@ -58,12 +29,12 @@ class TextUtil {
 
     /** @param {Array.<string>} arr */
     static reduceArray(arr, charLimit, start="") {
-        const AND_MORE = "\n ...and more" 
-        return arr.reduce((pv, cv) => {
+        const and_more = (i) => `\n*...and ${arr.length - i} more*`;
+        return arr.reduce(([pv, am], cv, i) => {
             const val = pv + "\n" + cv
-            if ((val.length + AND_MORE.length) > charLimit) return pv;
-            return val;
-        }, start)
+            if ((val.length + and_more(i).length) > charLimit) return [pv, am || and_more(i)];
+            return [val, am];
+        }, [start, ""]).join('')
     }
 
     /** @param {number} delta Number of seconds to stringify */
@@ -121,6 +92,11 @@ class TextUtil {
     /** @param {string} str  */
     static snakeToUpperCamelCase(str) {
         return str.split("_").map(v => v[0].toUpperCase() + v.slice(1)).join(" ");
+    }
+
+    /** @param {string} str  */
+    static snakeToNormalCase(str) {
+        return str.replaceAll('_', ' ');
     }
 
     static stringifyObject(obj, max) {

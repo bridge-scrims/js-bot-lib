@@ -1,10 +1,9 @@
-const { userMention } = require("discord.js")
+const { userMention, time } = require("discord.js")
 
 const GameParticipantCollection = require("./collections/game_participants")
 const GameParticipant = require("./game_participant")
 const I18n = require("../tools/internationalization")
 const TableRow = require("../postgresql/row")
-const DBType = require("./type")
 
 class Game extends TableRow {
 
@@ -15,8 +14,8 @@ class Game extends TableRow {
         /** @type {number} */
         this.id_game
 
-        /** @type {number} */
-        this.id_type
+        /** @type {string} */
+        this.type
 
     }
 
@@ -39,16 +38,11 @@ class Game extends TableRow {
     }
 
     /**
-     * @param {string|DBType} typeResolvable 
+     * @param {'prime_council_vouch_duels'} type 
      */
-    setType(typeResolvable) {
-        if (typeof typeResolvable === "string") typeResolvable = { name: typeResolvable }
-        this._setForeignObjectKeys(this.client.gameTypes, ['id_type'], ['id_type'], typeResolvable)
+    setType(type) {
+        this.type = type
         return this
-    }   
-
-    get type() {
-        return this.client.gameTypes.cache.find(this.id_type);
     }
 
     async fetchParticipants() {
@@ -67,16 +61,6 @@ class Game extends TableRow {
         return (new GameParticipantCollection(this)).read();
     }
 
-    /** 
-     * @override
-     * @param {Object.<string, any>} gameData 
-     */
-    update(gameData) {   
-        super.update(gameData)
-        this.setType(gameData.type)
-        return this
-    }
-
     /**
      * @param {I18n} i18n
      * @param {GameParticipant[]|Object.<string, GameParticipant[]>|GameParticipantCollection} [participants]
@@ -84,7 +68,7 @@ class Game extends TableRow {
      */
     toEmbedField(i18n, participants) {
         return {
-            name: `<t:${this.started_at}:R>`,
+            name: time(this.started_at, "R"),
             inline: true,
             value: Object.values(this.getParticipants(participants).getTeams())
                 .map(v => v.map(u => userMention(u.user_id)).join(" ")).join(`\n**══ ${i18n.get("vs")} ══**\n`) || i18n.get("games.no_participants")

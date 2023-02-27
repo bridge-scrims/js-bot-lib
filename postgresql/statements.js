@@ -1,45 +1,27 @@
 const TableRow = require("./row");
 
+const SUB_QUERY_REGEX = new RegExp(/^\(.*\)$/)
+
 class SQLStatementCreator {
 
     static AND(...objs) {
         return new SQLStatementCreator(objs, { separator: "AND" });
     }
 
-    static NOT(obj) {
-        return new SQLStatementCreator(obj, { prefix: "NOT" });
-    }
-
-    static AND_NOT(...objs) {
-        return new SQLStatementCreator(objs, { prefix: "NOT", separator: "AND" });
-    }
-
     static OR(...objs) {
         return new SQLStatementCreator(objs, { separator: "OR" });
-    }
-
-    static OR_NOT(...objs) {
-        return new SQLStatementCreator(objs, { prefix: "NOT", separator: "OR" });
     }
     
     static LIKE(...objs) {
         return new SQLStatementCreator(objs, { operator: "LIKE" });
     }
-    
-    static OR_LIKE(...objs) {
-        return new SQLStatementCreator(objs, { operator: "LIKE", separator: "OR" });
-    }
 
+    /** case insensitive LIKE */
     static ILIKE(...objs) {
         return new SQLStatementCreator(objs, { operator: "ILIKE" });
     }
 
-    static OR_ILIKE(...objs) {
-        return new SQLStatementCreator(objs, { operator: "ILIKE", separator: "OR" });
-    }
-
-    constructor(objs, { prefix, operator, separator, parent } = {}) {
-        this.prefix = prefix ?? ""
+    constructor(objs, { operator, separator, parent } = {}) {
         this.operator = operator ?? "="
         this.separator = separator ?? "AND"
         this.parent = parent ?? "this"
@@ -101,17 +83,19 @@ class SQLStatementCreator {
     /** @param {Object.<string, any>} obj */
     flatten(obj, params, prevParent) {
         Object.entries(obj)
-            .filter(([key, _]) => !(new RegExp("^\\(.*\\)$").test(key)))
+            .filter(([key, _]) => !SUB_QUERY_REGEX.test(key))
             .forEach(([key, val]) => {
                 delete obj[key]
+                const prefix = key.startsWith('$') ? "NOT " : ""
+                if (key.startsWith('$')) key = key.slice(1)
                 key = `"${key}"`
                 if (prevParent) key = `${prevParent}.${key}`
                 if (typeof val === "object" && val !== null && !val.$) {
                     val = { ...val }
-                    this.flatten(val, params, key)
+                    this.flatten(val, params, `${prefix}${key}`)
                     Object.entries(val).forEach(([key, val]) => obj[key] = val)
                 }else {
-                    if (this.parent && !prevParent) key = `"${this.parent}".${key}`
+                    if (this.parent && !prevParent) key = `${prefix}"${this.parent}".${key}`
                     obj[key] = val
                 }
             })
@@ -143,9 +127,8 @@ class SQLStatementCreator {
     toWhereStatement(params) {
         return this.objs.reduce((sql, obj) => {
             const newSQL = ((obj instanceof SQLStatementCreator) ? obj.toWhereStatement(params) : this.createWhereStatement({ ...obj }, params))
-            if (!newSQL) return sql;
-            if (!sql) return `${this.prefix} ${newSQL}`.trim();
-            return `(${sql}) ${this.separator} ${this.prefix}(${newSQL})`;
+            if (!newSQL || !sql) return sql || newSQL;
+            return `(${sql}) ${this.separator} (${newSQL})`;
         }, "")
     }
 

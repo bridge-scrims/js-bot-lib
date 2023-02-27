@@ -14,6 +14,7 @@ const DBClient = require("../postgresql/database");
 const MessageOptionsBuilder = require("../tools/payload_builder");
 
 const configCommand = require("./interaction-handlers/config_command");
+const findCommand = require("./interaction-handlers/find_command");
 const sendCommand = require("./interaction-handlers/send_command");
 const pingCommand = require("./interaction-handlers/ping_command");
 
@@ -101,7 +102,7 @@ const HostGuildManager = require("./host");
         this.on('error', console.error)
         this.on('shardError', console.error);
 
-        [pingCommand, sendCommand, configCommand].forEach(v => this.commands.add(v))
+        [pingCommand, findCommand, sendCommand, configCommand].forEach(v => this.commands.add(v))
 
     }
 
@@ -150,7 +151,7 @@ const HostGuildManager = require("./host");
         if (role.managed || role.id === role.guild.id) return false;
         
         const botMember = role.guild.members.me
-        if (!(role.guild.ownerId === this.user.id || botMember.permissions.has("Administrator") || botMember.permissions.has("ManageRoles"))) return false;
+        if (!(botMember?.permissions?.has("ManageRoles", true))) return false;
         
         const largest = Math.max(...botMember.roles.cache.map(role => role.position))
         return (largest > role.position);

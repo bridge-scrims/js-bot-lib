@@ -17,13 +17,13 @@ class Ticket extends TableRow {
         if (!this.id_ticket) this.setId()
         
         /** @type {string} */
-        this.id_type
+        this.type
 
         /** @type {string} */
         this.user_id
 
         /** @type {string} */
-        this.id_status
+        this.status
 
         /** @type {string} */
         this.guild_id
@@ -44,7 +44,7 @@ class Ticket extends TableRow {
     }
 
     isCacheExpired(now) {
-        return ((this.status?.name === "deleted") && (!now || super.isCacheExpired(now)));
+        return ((this.status === "deleted") && (!now || super.isCacheExpired(now)));
     }
 
     /**
@@ -88,29 +88,15 @@ class Ticket extends TableRow {
         return this.userProfile.getMention(...arguments);
     }
 
-    get type() {
-        return this.client.ticketTypes.cache.find(this.id_type);
-    }
-
-    /**
-     * @param {number|string|Object.<string, any>|DBType} typeResolvable 
-     */
-    setType(typeResolvable) {
-        if (typeof typeResolvable === "string") typeResolvable = { name: typeResolvable }
-        this._setForeignObjectKeys(this.client.ticketTypes, ['id_type'], ['id_type'], typeResolvable)
+    /** @param {'support'|'report'|'prime_app'} type */
+    setType(type) {
+        this.type = type
         return this;
     }
 
-    get status() {
-        return this.client.ticketStatuses.cache.find(this.id_status);
-    }
-
-    /**
-     * @param {number|string|Object.<string, any>|TicketStatus} statusResolvable 
-     */
-    setStatus(statusResolvable) {
-        if (typeof statusResolvable === "string") statusResolvable = { name: statusResolvable }
-        this._setForeignObjectKeys(this.client.ticketStatuses, ['id_status'], ['id_status'], statusResolvable)
+    /** @param {'open'|'closed'|'deleted'} status */
+    setStatus(status) {
+        this.status = status
         return this;
     }
 
@@ -161,14 +147,11 @@ class Ticket extends TableRow {
         return this;
     }
 
-    /** 
-     * @override
-     * @param {Object.<string, any>} ticketData 
+    /**
+     * @param {?number} deleted_at If undefined will use the current time
      */
-    update(ticketData) {
-        super.update(ticketData)
-        this.setType(ticketData.type)
-        this.setStatus(ticketData.status)
+    setDeletion(deleted_at = Math.floor(Date.now()/1000)) {
+        this.deleted_at = deleted_at 
         return this;
     }
 

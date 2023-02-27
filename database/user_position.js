@@ -1,4 +1,4 @@
-const { User } = require("discord.js");
+const { User, time } = require("discord.js");
 const TableRow = require("../postgresql/row");
 const Position = require("./position");
 
@@ -113,22 +113,22 @@ class UserPosition extends TableRow {
 
     getDuration() {
         return (this.expires_at === null) ? `*permanently*` 
-            : ((!this.expires_at) ? '' : `until <t:${this.expires_at}:f>`);
+            : ((!this.expires_at) ? '' : `until ${time(this.expires_at, "f")}`);
     }
 
     getExpiration() {
         return (this.expires_at === null) ? `*permanent*` 
-            : ((!this.expires_at) ? '' : `<t:${this.expires_at}:f>`);
+            : ((!this.expires_at) ? '' : time(this.expires_at, "f"));
     }
 
     getExpirationDetail() {
         return (this.expires_at === null) ? `[permanent]` 
-            : ((!this.expires_at) ? '[unknown-duration]' : `[expires <t:${this.expires_at}:R>]`);
+            : ((!this.expires_at) ? '[unknown-duration]' : `[expires ${time(this.expires_at, "R")}]`);
     }
 
     asUserInfo(guild_id) {
         if (!this.position) return null;
-        const expiration = (this.expires_at ? ` (expires <t:${this.expires_at}:R>)` : "")
+        const expiration = (this.expires_at ? ` (expires ${time(this.expires_at, "R")})` : "")
         return this.position.asUserInfo(guild_id, ':small_blue_diamond:') + expiration;
     }
 
