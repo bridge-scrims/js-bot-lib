@@ -64,17 +64,13 @@ class VoiceBasedSessionsManager {
         /** @type {Object.<string, number>} */
         this.expirations = {}
 
-        this.database.on('connected', () => this.onConnected())
+        this.bot.on('voiceStateUpdate', (oldState, newState) => this.onVoiceStateUpdate(oldState, newState))
         VoiceBasedSessionsManager.sessionManagers[this.typeName] = this
 
     }
 
     get database() {
         return this.bot.database;
-    }
-
-    onConnected() {
-        this.bot.on('voiceStateUpdate', (oldState, newState) => this.onVoiceStateUpdate(oldState, newState))
     }
 
     getSession(channelId) {

@@ -4,18 +4,15 @@ const I18n = require("../../tools/internationalization");
 const TextUtil = require("../../tools/text_util");
 
 const SessionParticipant = require("../../database/session_participant");
-const UserProfile = require("../../database/user_profile");
 const Session = require("../../database/session");
 
 const MIN_LENGTH = 15*60
 const MIN_PARTICIPANTS = 5
 const MIN_PARTICIPATE_TIME = 1*60
 
-/*
-const MIN_LENGTH = 30
-const MIN_PARTICIPANTS = 1
-const MIN_PARTICIPATE_TIME = 30
-*/
+// const MIN_LENGTH = 30
+// const MIN_PARTICIPANTS = 1
+// const MIN_PARTICIPATE_TIME = 30
 
 class PendingVCSessionParticipant extends SessionParticipant {
 
@@ -190,7 +187,6 @@ class PendingVoiceChannelBasedSession extends Session {
         // It is not worth saving this in the database
         if (length < MIN_LENGTH || (Object.keys(this.participants).length < MIN_PARTICIPANTS) || discard) {
             this.client.ipc.notify("vc_session_discarded", { 
-                executor: UserProfile.fromUser(this.creator), 
                 session: this, channel: `${this.channel}`,
                 guild_id: this.channel.guild.id
             })
@@ -202,7 +198,7 @@ class PendingVoiceChannelBasedSession extends Session {
             await participant.create(trimTime).catch(console.error)
 
         this.client.ipc.notify("vc_session_created", { 
-            session: this, guild_id: this.channel.guild.id, channel: `${this.channel}`, executor: this.creator
+            session: this, guild_id: this.channel.guild.id, channel: `${this.channel}`
         })
     }
 
