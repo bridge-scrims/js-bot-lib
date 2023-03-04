@@ -38,7 +38,7 @@ class UserProfileUpdater {
             const updated = profile.clone().setDiscord(user)
             if (!profile.exactlyEquals(updated)) 
                 await this.database.users.sqlUpdate(profile, updated)
-                    .catch(err => console.error(`Unable to update profile for ${profile.user_id}! (${err})`, changes))
+                    .catch(err => console.error(`Unable to update profile for ${profile.user_id}! (${err})`))
         }
     }
 
@@ -48,16 +48,14 @@ class UserProfileUpdater {
         await this.ensureProfileJoinedAt(member)
     }
 
-    /** @param {BaseGuild[]} guilds */
-    async initialize(guilds) {
+    async initialize() {
         console.log("Initializing profiles...")
-        await Promise.all(guilds.map(guild => this.initializeGuildMembers(guild).catch(console.error)))
+        await Promise.all(this.bot.guilds.cache.map(guild => this.initializeGuildMembers(guild).catch(console.error)))
         console.log("Profiles initialized!")
     }
 
-    /** @param {BaseGuild} base */
-    async initializeGuildMembers(base) {
-        const guild = await base.fetch()
+    /** @param {Guild} guild */
+    async initializeGuildMembers(guild) {
         const members = await guild.members.fetch()
         const profiles = await this.database.users.fetchMap({}, ["user_id"])
         await Promise.all(members.map(m => this.ensureProfile(m.user, profiles))).catch(console.error)

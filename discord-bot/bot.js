@@ -50,7 +50,7 @@ const HostGuildManager = require("./host");
         ]
 
         intents = Array.from(new Set([
-            ...intents, GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages
+            ...intents, GatewayIntentBits.GuildMembers, GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages
         ]))
         
         // const rejectOnRateLimit = (data) => (data.timeout > 30*1000);
@@ -129,7 +129,8 @@ const HostGuildManager = require("./host");
     async login() {
         await super.login(process.env.BOT_TOKEN)
 
-        const guilds = await this.guilds.fetch()
+        await this.guilds.fetch()
+        await Promise.all(this.guilds.cache.map(g => g.members.fetch()))
 
         await this.database.connect();
         this.emit("databaseConnected")
@@ -139,8 +140,8 @@ const HostGuildManager = require("./host");
 
         this.commands.initialize().then(() => console.log("Commands initialized!"))
 
-        if (this.guildUpdater) await this.guildUpdater.initialize(guilds)
-        if (this.profileUpdater) await this.profileUpdater.initialize(guilds)
+        if (this.guildUpdater) await this.guildUpdater.initialize()
+        if (this.profileUpdater) await this.profileUpdater.initialize()
 
         this.emit("initialized")
         console.log("Startup complete!")

@@ -46,7 +46,7 @@ class DBGuildUpdater {
     async initialize(guilds) {
 
         console.log("Initializing guilds...")
-        await Promise.all(guilds.map(guild => this.update(guild).catch(console.error)))
+        await Promise.all(this.bot.guilds.cache.map(guild => this.update(guild).catch(console.error)))
         console.log("Guilds initialized!")
 
     }
