@@ -6,41 +6,42 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 class TimeUtil {
 
-    static parseTime(content, now) {
-        if (content.toUpperCase().split(' ').some(item => item === 'NOW') && now) 
-            return { success: true, value: ((((((now.hours()*60) + now.minutes())*60) + now.seconds())*1000) + now.milliseconds()), hour: now.hour(), minute: now.minute() }
+    static parseTime(content, tz='UTC') {
+        content = content.toLowerCase();
+        if (['now', 'rn'].includes(content)) return moment.tz(tz);
 
-        const time = content.split(':')
-        if (time.length !== 2) 
-            return { success: false, error: 'Time should be in format `hour`**:**`minute` `(AM/PM)`**!**' };
+        const time = /(\d{1,2})(:\d{1,2})? ?(a.?m.?|p.?m.?)?/.exec(content)?.slice(1)
+        if (!time) return null;
 
-        let hour = parseInt((time[0].match(/\d/g) || []).join(''))
-        if (isNaN(hour)) 
-            return { success: false, error: 'The hour must be a number.' };
-        if (hour < 0 || hour > 24) 
-            return { success: false, error: 'The hour must be a number between 0-24.' };
-        
-        const isPM = (content.toUpperCase().includes('PM') || content.toUpperCase().includes('P.M'))
-        const isAM = (content.toUpperCase().includes('AM') || content.toUpperCase().includes('A.M'))
+        if (time[2]?.includes('p') && time[0] >= 1 && time[0] <= 11) time[0] = parseInt(time[0]) + 12
+        if (time[2]?.includes('a') && time[0] === 12) time[0] = 24
+        if (time[1]) time[1] = time[1].slice(1)
 
-        if (hour === 12 && isAM) hour += 12;
-        if ((hour >= 1 && hour <= 11) && isPM) hour += 12;
-
-        const minute = parseInt((time[1].match(/\d/g) || []).join(''))
-        if (isNaN(minute)) 
-            return { success: false, error: 'The minute must be a number.' };
-        if (minute < 0 || minute > 60) 
-            return { success: false, error: 'The minute must be a number between 0-60.' };
-
-        return { success: true, value: (((hour*60)+minute)*60*1000), hour, minute };
+        const [h, m, _] = time
+        return moment.tz(tz).hour(parseInt(h)).minute(parseInt(m) || 0);
     }
 
+    static parseDate(content, tz='UTC') {
+        content = content.toLowerCase();
+        if (content === 'today') return moment.tz(tz);
+        if (['tomorrow', 'tmr'].includes(content)) return moment.tz(tz).add(1, 'day');
+    
+        const date = /(\d{1,2})([.|/])(\d{1,2})[.|/](\d{2,4})/.exec(content)?.slice(1)
+        if (!date) return null;
+    
+        if (date[1] === '/') [date[0], date[2]] = [date[2], date[0]]
+        if (date[3].length <= 2) date[3] = `20${date[3]}`
+        
+        const [d, _, m, y] = date;
+        return moment.tz(tz).year(parseInt(y)).month(parseInt(m) - 1).date(parseInt(d));
+    }
+    
     static extractOffset(content) {
         const time = this.parseTime(content)
-        if (!time.success) return time;
+        if (!time) return null;
 
         const currentTime = ((new Date()).getUTCHours() * 60) + (new Date()).getUTCMinutes()
-        const playersTime = (time.value/1000)/60
+        const playersTime = (time.hours() * 60) + time.minutes()
 
         let difference = playersTime - currentTime
         if (Math.abs(difference) >= 720) {
@@ -48,7 +49,7 @@ class TimeUtil {
             if (playersTime > currentTime) difference *= -1
         }
 
-        return { success: true, value: ((Math.round(difference / 30) * 30) * -1) };
+        return ((Math.round(difference / 30) * 30) * -1);
     }
 
     static resolveTZ(resolvable) {

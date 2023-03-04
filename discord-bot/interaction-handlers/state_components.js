@@ -1,18 +1,46 @@
-const { MessageFlags, InteractionType, ButtonBuilder, ActionRowBuilder, ModalBuilder, ButtonStyle } = require("discord.js");
+const { MessageFlags, InteractionType, ButtonBuilder, ActionRowBuilder, ModalBuilder, ButtonStyle, Message } = require("discord.js");
 const MessageOptionsBuilder = require("../../tools/payload_builder");
 const LocalizedError = require("../../tools/localized_error");
 
+/**
+ * @template [S=RecallComponentState]
+ * 
+ * @typedef StateManager
+ * @property {() => S} default
+ * @property {((previousResponse: Message<true>) => S)} recall
+ *
+ * @typedef Parser
+ * @property {((state: S, i: RecallComponentInteraction, data: import('discord.js').ModalData) => Promise)} parseModalComponents
+ */
+
+
+/**
+ * @template [S=RecallComponentState]
+ */
 class StateComponentHandler {
 
+    /**
+     * @param {string} customId 
+     * @param {*} getResponseCall 
+     * @param {*} verifyCall 
+     * @param {?StateManager<S>} stateManager 
+     * @param {?Parser<S>} parser 
+     */
     constructor(customId, getResponseCall, verifyCall=null, stateManager=null, parser=null) {
 
-        /** @protected */
+        /** @readonly */
+        this.customId = customId
+
+        /** 
+         * @protected
+         * @type {Object<string, S>}
+         */
         this.states = {}
 
         /** @protected */
         this.parser = parser
 
-        /** @protected */
+        /** @protected*/
         this.stateManager = stateManager
 
         /** @protected */
@@ -21,12 +49,8 @@ class StateComponentHandler {
         /** @protected */
         this.getResponseCall = getResponseCall
 
-        /** @type {string} */
-        this.customId = customId
-        
     }
 
-    /** @protected */
     getCustomId(state) {
         return `${this.customId}//${state?.index ?? "0"}/${state ? state.id : "/"}`;
     }
@@ -72,7 +96,7 @@ class StateComponentHandler {
 
         if (!response.last) {
             const buttons = this.getButtons(interaction.state, response)
-            if (buttons.length > 0 && interaction.state.index !== -1) 
+            if (buttons.length > 0 && interaction.state.index >= 0) 
                 response.components = [ new ActionRowBuilder().addComponents(...buttons), ...(response?.components ?? []) ]
             else response.components = response.components ?? []
         }
@@ -87,15 +111,15 @@ class StateComponentHandler {
     async onInteract(interaction) {
         const [_, index, stateId, action] = Array.from(new Array(4)).map(_ => interaction.args.shift())
         
-        const state = await this.getState(stateId, interaction)
+        const state = this.getState(stateId, interaction)
         if (!state) throw new LocalizedError("recaller_unknown_state")
-        state.index = parseInt(index)
+        state.index = parseInt(index) || 0
     
-        if (interaction.type === InteractionType.ModalSubmit && this.parser) {
+        if (interaction.type === InteractionType.ModalSubmit) {
             if (interaction?.message?.flags?.has(MessageFlags.Ephemeral)) {
                 await interaction.update(new MessageOptionsBuilder().setContent('Editing...'))
             }else await interaction.deferReply({ ephemeral: true })
-            await this.parser.parseModalComponents(state, interaction, interaction.components.map(v => v.components).flat())
+            if (this.parser) await this.parser.parseModalComponents(state, interaction, interaction.components.map(v => v.components).flat())
         }
 
         if (action === 'NEXT') state.index += 1
@@ -106,13 +130,12 @@ class StateComponentHandler {
         interaction.state = state
 
         const response = await this.getResponse(interaction)
-        if (response) await interaction.return(response)
-        else if (interaction?.message?.flags?.has(MessageFlags.Ephemeral)) await interaction.return({ content: "Process Complete!", embeds: [], components: [] })
-        if (response?.last) delete this.states[state.id];
+        if (response) await interaction.return(response || new MessageOptionsBuilder().setContent("Process Complete!"))
+        if (!response || response.last) delete this.states[state.id];
     }
 
     /** @protected */
-    async getState(stateId, interaction) {
+    getState(stateId, interaction) {
         if (!this.stateManager) return {};
         const state = this.states[stateId] ?? null
         const prevResponse = (interaction?.message?.flags?.has(MessageFlags.Ephemeral)) ? interaction.message : null

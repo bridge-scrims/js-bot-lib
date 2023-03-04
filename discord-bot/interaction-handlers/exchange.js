@@ -1,6 +1,6 @@
 const { 
     ModalBuilder, ActionRowBuilder, ComponentType, EmbedBuilder, InteractionType, 
-    SnowflakeUtil, TextInputBuilder, ButtonBuilder, ButtonStyle 
+    SnowflakeUtil, TextInputBuilder, ButtonBuilder, ButtonStyle, Message 
 } = require("discord.js");
 
 const MessageOptionsBuilder = require("../../tools/payload_builder");
@@ -12,7 +12,7 @@ const TextUtil = require("../../tools/text_util");
 const TimeUtil = require("../../tools/time_util");
 
 /**
- * @typedef {'Text' | 'Users' | 'Country' | 'Time' | 'McAccount' | 'URL'} InputFieldParseType
+ * @typedef {'Text' | 'Users' | 'Country' | 'Offset' | 'McAccount' | 'URL'} InputFieldParseType
  * 
  * @typedef EphemeralExchangeInputFieldData
  * @property {string} label
@@ -44,7 +44,7 @@ class Parser {
         if (type === 'McAccount') return this.parseMCAccount(value);
         if (type === 'Text') return TextUtil.stripText(value);
         if (type === 'URL') return TextUtil.isValidHttpUrl(value) ? value : null;
-        if (type === 'Time') return TimeUtil.extractOffset(value);
+        if (type === 'Offset') return TimeUtil.extractOffset(value);
         if (type === 'Country') return TimeUtil.parseCountry(value);
         return value;
     }
@@ -75,8 +75,42 @@ class StateManager {
 
     }
 
-    async recall() {
-        return null;
+    /**
+     * @param {Message<true>} previousResponse 
+     * @returns {State}
+     */
+    recall(previousResponse) {
+        const embed = previousResponse.embeds?.[0]
+        const fields = embed?.fields
+        if (!fields || !fields.length || this.fields.length < fields.length) return null;
+
+        const state = this.default()
+        state.index = Math.ceil(fields.length / 5)
+        fields.forEach((field, i) => {
+            const inputted = this.recallField(this.fields[i].parseType, field.value)
+            state.setFieldValue(this.fields[i].customId, inputted, undefined)
+        })
+        return state;
+    }
+
+    /** 
+     * @protected
+     * @param {InputFieldParseType} type
+     * @param {string} value
+     */
+    recallField(type, value) {
+
+        value = /```(.*)```/.exec(value)?.[1] || value;
+
+        if (type === 'McAccount' || type === 'Offset') return value.replace(/(\(.*\))/, "").trim();
+        if (type === 'Users') 
+            return value.split('\n')
+                .map(v => /`•` (.+)/.exec(v)?.[1] || v)
+                .map(v => /(.+?)( \(.*\))?/.exec(v)?.[1] || v)
+                .map(v => `@${v}`).join(' ')
+
+        return value;
+
     }
 
     default() {
@@ -107,6 +141,12 @@ class State {
 
     }
 
+    reset() {
+        this.index = 0
+        Object.values(this.values).forEach(v => delete v.parsed)
+        return this;
+    }
+
     getFields() {
         return this.fields;
     }
@@ -132,6 +172,7 @@ class State {
     }
 
     disableNext() {
+        if (this.fields.every(field => this.getFieldValue(field) === undefined)) return true;
         return this.fields
             .filter(field => this.getFieldValue(field) !== undefined)
             .some(field => this.getFieldComment(field.parseType, this.getFieldValue(field), field.required, field.force))
@@ -155,8 +196,8 @@ class State {
         if (type === 'Country' && !value && required) 
             return { name: `:x:  Invalid Country`, value: "*Please input a valid country before continuing.*" };
 
-        if (type === 'Time' && !value?.success && required)
-            return { name: `:x:  Invalid Time`, value: value.error };
+        if (type === 'Offset' && !value && required)
+            return { name: `:x:  Invalid Time`, value: "*Please input a valid time before continuing.*" };
 
         return null;
 
@@ -177,8 +218,8 @@ class State {
         if (type === 'Country' && value)
             return `\`\`\`${value.name.common}\`\`\``;
 
-        if (type === 'Time' && value?.success)
-            return `\`\`\`${inputted} (${TimeUtil.stringifyOffset(value.value)})\`\`\``;
+        if (type === 'Offset' && value)
+            return `\`\`\`${inputted} (${TimeUtil.stringifyOffset(value)})\`\`\``;
 
         return `\`\`\`${((typeof value === 'string') ? TextUtil.limitText(value, 1024-6) : inputted) || " "}\`\`\``;
 
@@ -217,6 +258,7 @@ class State {
  * @property {State} state
  */
 
+/** @extends {StateComponentHandler<State>} */
 class ExchangeHandler extends StateComponentHandler {
 
     /**
@@ -297,7 +339,7 @@ class ExchangeHandler extends StateComponentHandler {
      */
     async __getModalResponse(interaction) {
         const action = interaction.args.shift()
-        if (interaction.state.index === -1) 
+        if (interaction.state.index < 0) 
             return new MessageOptionsBuilder().setContent(`*${this.title} Process Cancelled*`).setEphemeral(true)
         if (interaction.type === InteractionType.ModalSubmit && action !== "EDIT") {
             const embed = new EmbedBuilder()
@@ -306,9 +348,11 @@ class ExchangeHandler extends StateComponentHandler {
             return this.getModalResponseCall(embed, interaction);  
         }
         const modal = this.getModal(interaction.state);
-        if (!modal) {
+        if (!modal && !interaction.state.disableNext()) {
             await interaction.update(new MessageOptionsBuilder().setContent('Submitting...'))
-            return this.onFinish(interaction).then(v => (typeof v === 'object') ? ({ ...v, last: true }) : v)
+            const response = await this.onFinish(interaction)
+            const last = !this.getModal(interaction.state) && !interaction.state.disableNext()
+            return response ? { ...response, last } : response;
         }
         return modal;
     }

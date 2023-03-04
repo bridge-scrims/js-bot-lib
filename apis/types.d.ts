@@ -64,5 +64,6 @@ export interface ChallongeParticipant {
     name: string,
     misc: string,
     created_at: string,
-    seed: number
+    seed: number,
+    active: boolean
 }
