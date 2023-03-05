@@ -3,16 +3,39 @@ const RESTCountriesClient = require('../apis/countries');
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const UNITS = { "s": 1, "m": 60, "h": 60*60, "d": 60*60*24, "w": 60*60*24*7, "month": 60*60*24*30, "y": 60*60*24*365 }
 
 class TimeUtil {
 
-    static parseTime(content, tz='UTC') {
-        content = content.toLowerCase();
-        if (['now', 'rn'].includes(content)) return moment.tz(tz);
+    /** 
+     * @param {string|[string]} content the regex matches will be removed from the content string so wrap in an array to get those changes
+     * @returns {?number} duration as seconds 
+     */
+    static parseDuration(content) {
+        if (typeof content !== 'object') content = [content]
+        const seconds = Array.from(content[0].matchAll(/(?:\s|^)([-|+]?\d+|a |an ) *(month|s|m|h|d|w|y)\S*( ago)?/gi))
+            .reduce((secs, [match, val, unit, negate]) => {
+                content[0] = content[0].replace(match, '')
+                return (secs + (parseInt(val) || 1) * UNITS[unit] * (negate ? -1 : 1))
+            }, 0)
+            
+        if (Math.abs(seconds) > Number.MAX_SAFE_INTEGER) 
+            return Number.MAX_SAFE_INTEGER * (seconds < 0 ? -1 : 1);
+        return seconds;
+    }
 
-        const time = /(\d{1,2})(:\d{1,2})? ?(a.?m.?|p.?m.?)?/.exec(content)?.slice(1)
+    /** 
+     * @param {string|[string]} content the regex matches will be removed from the content string so wrap in an array to get those changes
+     * @returns {?moment.Moment} a moment with the given timezone and the parsed hour and minute
+     */
+    static parseTime(content, tz='UTC') {
+        if (typeof content !== 'object') content = [content]
+        if (/(\s|^)(now|rn)(\s|$)/i.exec(content[0])) return moment.tz(tz);
+
+        const time = /(?:\s|^)(\d{1,2})(:\d{1,2})? *(a.?m.?|p.?m.?|\s|$)/i.exec(content[0])
         if (!time) return null;
 
+        content[0] = content[0].replace(time.shift(), '')
         if (time[2]?.includes('p') && time[0] >= 1 && time[0] <= 11) time[0] = parseInt(time[0]) + 12
         if (time[2]?.includes('a') && time[0] === 12) time[0] = 24
         if (time[1]) time[1] = time[1].slice(1)
@@ -21,16 +44,24 @@ class TimeUtil {
         return moment.tz(tz).hour(parseInt(h)).minute(parseInt(m) || 0);
     }
 
+    /** 
+     * @param {string|[string]} content the regex matches will be removed from the content string so wrap in an array to get those changes
+     * @returns {?moment.Moment} a moment with the given timezone and the parsed year, month and date
+     */
     static parseDate(content, tz='UTC') {
-        content = content.toLowerCase();
-        if (content === 'today') return moment.tz(tz);
-        if (['tomorrow', 'tmr'].includes(content)) return moment.tz(tz).add(1, 'day');
+        if (typeof content !== 'object') content = [content]
+        if (/(\s|^)(today|tdy)(\s|$)/i.exec(content[0])) return moment.tz(tz);
+        if (/(\s|^)(tomorrow|tmr)(\s|$)/i.exec(content[0])) return moment.tz(tz).add(1, 'day');
     
-        const date = /(\d{1,2})([.|/])(\d{1,2})[.|/](\d{2,4})/.exec(content)?.slice(1)
+        const date = /(\d{1,2})([.|/])(\d{1,2})?[.|/]?(\d{2,4})?/i.exec(content[0])
         if (!date) return null;
     
+        content[0] = content[0].replace(date.shift(), '')
+        if (!date[2]) date[2] = moment.tz(tz).month() + 1
+        if (!date[3]) date[3] = moment.tz(tz).year()
+
         if (date[1] === '/') [date[0], date[2]] = [date[2], date[0]]
-        if (date[3].length <= 2) date[3] = `20${date[3]}`
+        if (date[3].length <= 2) date[3] = `${moment.tz(tz).year()}`.slice(0, 2) + date[3]
         
         const [d, _, m, y] = date;
         return moment.tz(tz).year(parseInt(y)).month(parseInt(m) - 1).date(parseInt(d));
