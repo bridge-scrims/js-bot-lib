@@ -196,7 +196,7 @@ class State {
         if (type === 'Country' && !value && required) 
             return { name: `:x:  Invalid Country`, value: "*Please input a valid country before continuing.*" };
 
-        if (type === 'Offset' && !value && required)
+        if (type === 'Offset' && typeof value !== "number" && required)
             return { name: `:x:  Invalid Time`, value: "*Please input a valid time before continuing.*" };
 
         return null;
@@ -218,7 +218,7 @@ class State {
         if (type === 'Country' && value)
             return `\`\`\`${value.name.common}\`\`\``;
 
-        if (type === 'Offset' && value)
+        if (type === 'Offset' && typeof value === 'number')
             return `\`\`\`${inputted} (${TimeUtil.stringifyOffset(value)})\`\`\``;
 
         return `\`\`\`${((typeof value === 'string') ? TextUtil.limitText(value, 1024-6) : inputted) || " "}\`\`\``;
