@@ -1,0 +1,16 @@
+# production
+package-lock.json
+/node_modules
+/dist
+
+# testing
+/tests
+/logs
+.env
+
+# developing
+/.vscode
+/.idea
+
+# misc
+.DS_Store
