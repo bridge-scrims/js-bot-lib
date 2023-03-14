@@ -7,6 +7,16 @@ const UNITS = { "s": 1, "m": 60, "h": 60*60, "d": 60*60*24, "w": 60*60*24*7, "mo
 
 class TimeUtil {
 
+    /**
+     * @param {RegExp} regexp 
+     * @param {[string]} mutableContent 
+     */
+    static execRemove(regexp, mutableContent) {
+        const match = regexp.exec(mutableContent[0])
+        if (match) mutableContent[0] = mutableContent[0].replace(match.shift(), '')
+        return match
+    }
+    
     /** 
      * @param {string|[string]} content the regex matches will be removed from the content string so wrap in an array to get those changes
      * @returns {?number} duration as seconds 
@@ -16,7 +26,7 @@ class TimeUtil {
         const seconds = Array.from(content[0].matchAll(/(?:\s|^)([-|+]?\d+|a |an ) *(month|s|m|h|d|w|y)\S*( ago)?/gi))
             .reduce((secs, [match, val, unit, negate]) => {
                 content[0] = content[0].replace(match, '')
-                return (secs + (parseInt(val) || 1) * UNITS[unit] * (negate ? -1 : 1))
+                return (secs + (parseInt(val) || 1) * UNITS[unit.toLowerCase()] * (negate ? -1 : 1))
             }, 0)
             
         if (Math.abs(seconds) > Number.MAX_SAFE_INTEGER) 
@@ -30,14 +40,13 @@ class TimeUtil {
      */
     static parseTime(content, tz='UTC') {
         if (typeof content !== 'object') content = [content]
-        if (/(\s|^)(now|rn)(\s|$)/i.exec(content[0])) return moment.tz(tz);
+        if (this.execRemove(/(\s|^)(now|rn)(\s|$)/i, content)) return moment.tz(tz);
 
-        const time = /(?:\s|^)(\d{1,2})(:\d{1,2})? *(a.?m.?|p.?m.?|\s|$)/i.exec(content[0])
+        const time = this.execRemove(/(?:\s|^)(\d{1,2})(:\d{1,2})? *(a.?m.?|p.?m.?|\s|$)/i, content)
         if (!time) return null;
 
-        content[0] = content[0].replace(time.shift(), '')
-        if (time[2]?.includes('p') && time[0] >= 1 && time[0] <= 11) time[0] = parseInt(time[0]) + 12
-        if (time[2]?.includes('a') && time[0] === 12) time[0] = 24
+        if (time[2]?.toLowerCase()?.includes('p') && time[0] >= 1 && time[0] <= 11) time[0] = parseInt(time[0]) + 12
+        if (time[2]?.toLowerCase()?.includes('a') && time[0] === 12) time[0] = 24
         if (time[1]) time[1] = time[1].slice(1)
 
         const [h, m, _] = time
@@ -50,13 +59,12 @@ class TimeUtil {
      */
     static parseDate(content, tz='UTC') {
         if (typeof content !== 'object') content = [content]
-        if (/(\s|^)(today|tdy)(\s|$)/i.exec(content[0])) return moment.tz(tz);
-        if (/(\s|^)(tomorrow|tmr)(\s|$)/i.exec(content[0])) return moment.tz(tz).add(1, 'day');
+        if (this.execRemove(/(\s|^)(today|tdy)(\s|$)/i, content)) return moment.tz(tz);
+        if (this.execRemove(/(\s|^)(tomorrow|tmr)(\s|$)/i, content)) return moment.tz(tz).add(1, 'day');
     
-        const date = /(\d{1,2})([.|/])(\d{1,2})?[.|/]?(\d{2,4})?/i.exec(content[0])
+        const date = this.execRemove(/(\d{1,2})([.|/])(\d{1,2})?[.|/]?(\d{2,4})?/i, content) 
         if (!date) return null;
     
-        content[0] = content[0].replace(date.shift(), '')
         if (!date[2]) date[2] = moment.tz(tz).month() + 1
         if (!date[3]) date[3] = moment.tz(tz).year()
 
